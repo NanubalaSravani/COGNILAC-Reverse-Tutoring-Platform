@@ -8,6 +8,9 @@ Cognilac flips the traditional classroom model. Instead of an AI tutoring a huma
 
 ---
 
+🚀 **Live Demo:**  
+👉 [https://nlp-sentiment-analyzer-2026.streamlit.app ](https://cognilac-reverse-tutoring-platform.onrender.com/)
+
 ## 🏆 Hackathon Challenge Alignment
 
 | Metric | Details |
