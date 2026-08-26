@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+CHALLENGE_VERTICAL = "AI Reverse-Tutoring & Adaptive Socratic STEM Learning"
 MODEL_NAME = "gemini-2.5-flash"
 
 PRESET_TOPICS = {
@@ -32,7 +33,17 @@ PRESET_TOPICS = {
     },
 }
 
-DEFAULT_TOPIC = "🌱 Photosynthesis"
+DEFAULT_TOPIC = "Photosynthesis"
+
+def find_preset_topic(topic_name: str) -> dict:
+    """Find preset topic configuration matching title or key safely."""
+    if not topic_name:
+        return None
+    clean_search = topic_name.strip().lower()
+    for key, data in PRESET_TOPICS.items():
+        if key.lower() == clean_search or data["title"].lower() == clean_search or clean_search in key.lower():
+            return data
+    return None
 
 def get_api_key(ui_key: str = None) -> str:
     """Retrieve Gemini API Key prioritizing UI entry, then environment."""
@@ -40,3 +51,4 @@ def get_api_key(ui_key: str = None) -> str:
         return ui_key.strip()
     env_key = os.getenv("GEMINI_API_KEY", "")
     return env_key.strip()
+
