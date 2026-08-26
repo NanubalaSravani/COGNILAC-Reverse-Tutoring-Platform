@@ -1,61 +1,129 @@
-# 🤖 COGNILAC — AI Reverse Tutoring & Socratic Evaluator
+# 🐞 Cognilac — AI Reverse-Tutoring & Socratic Evaluator
 
-Cognilac is an AI-powered reverse-tutoring platform built with Streamlit and Google Gemini. In Cognilac, the user acts as the **Teacher**, explaining complex STEM topics to **Leo** (a curious 10-year-old AI student). In parallel, the hidden **Cognilac Evaluator** assesses pedagogical quality, simplicity, factual accuracy, and detects knowledge gaps in real-time.
+**Submission for Hack2skill PromptWars x Diksuchi EdTech**
 
----
+> "Traditional quizzes tell you what you got wrong. Cognilac discovers what you don't actually understand."
 
-## 🎯 Hackathon Challenge Alignment
-
-- **Challenge Vertical**: AI Reverse-Tutoring & Adaptive Socratic STEM Learning
-- **Target Persona**: Student / Teacher Pair (Human Teacher explaining to a 10-year-old AI persona)
-- **Pedagogical Rationale**: "Traditional quizzes test what you remember. Cognilac discovers what you don't actually understand by turning the user into the teacher (Feynman Technique)."
-
-### Core Architecture & Logic:
-1. **Dual Parallel Agents**:
-   - **Leo Agent** (`core/agents.py`): Mimics a naive 10-year-old student with misconception challenge modes and adaptive difficulty levels (Level 1–5).
-   - **Cognilac Evaluator** (`core/evaluator.py`): Runs asynchronously in parallel to score 5 weighted pedagogical metrics (Factual Accuracy 30%, Conceptual Understanding 25%, Causal Reasoning 20%, Simplicity 15%, Jargon Independence 10%).
-2. **Dynamic Hybrid Evaluation**:
-   - Uses Gemini LLM structured JSON output when online.
-   - Uses algorithmic heuristic analysis (word complexity, causal connectives, term matching) when offline without hardcoded static scores.
+Cognilac flips the classroom. Instead of an AI tutoring a human, **you** become the teacher and explain STEM topics to **Leo**, a curious 10-year-old AI student built on Google Gemini. While you teach, a hidden **Cognilac Evaluator** silently grades your explanation on pedagogical quality, factual accuracy, and clarity — surfacing the gaps in your own understanding in real time.
 
 ---
 
-## 🔒 Security Features Implemented
+## 🏆 Hackathon Details
 
-1. **Secret & Key Protection**:
-   - Secrets are loaded via `.env` using `python-dotenv`.
-   - `.env` and sensitive files are excluded from Git via `.gitignore` and from Docker images via `.dockerignore`.
-2. **Input Sanitization & Boundary Protections**:
-   - User inputs and topic parameters are sanitized (stripping null bytes / non-printable control characters).
-   - Input lengths are capped (1,500 characters max) to protect against prompt injection and token exhaustion.
-3. **Session Rate Capping**:
-   - Chat sessions are capped at 30 turns to prevent bot loops and excessive API consumption.
-4. **Production Server Hardening**:
-   - Configured Streamlit security options in `.streamlit/config.toml` (`enableXsrfProtection = true`, `enableCORS = true`, minimal toolbar, disabled usage stats, hidden tracebacks).
-5. **XSS Protection**:
-   - Dynamic HTML elements rendered with `unsafe_allow_html=True` are escaped via `html.escape()`.
+| | |
+|---|---|
+| **Event** | Hack2skill PromptWars x Diksuchi EdTech |
+| **Challenge Vertical** | AI Reverse-Tutoring & Adaptive Socratic STEM Learning |
+| **Target Persona** | Student/Teacher pair — a human teacher explaining a concept to a 10-year-old AI persona |
+| **Core Idea** | Apply the Feynman Technique: you only truly understand something if you can teach it simply to a child. Cognilac operationalizes that as a graded, adaptive learning loop. |
+
+---
+
+## ✨ Why Cognilac
+
+Most learning tools test recall. Cognilac tests **understanding** — the harder, more honest signal. By making the user explain rather than answer, it exposes shaky mental models before an exam or interview does, and it does so through a natural, conversational interface rather than a form or quiz.
+
+---
+
+## 🧠 How It Works
+
+Cognilac runs two AI agents in parallel on every message you send:
+
+### 1. Leo — the Student Agent (`core/agents.py`)
+- Roleplays a genuinely curious, naive 10-year-old.
+- Asks follow-up questions the way a real child would, not a scripted bot.
+- Supports a **Misconception Challenge Mode**, where Leo pushes back with common wrong beliefs to see if you can correct them.
+- **Adaptive Difficulty**, Level 1 through 5, that scales Leo's questions to how well you're explaining.
+
+### 2. The Cognilac Evaluator (`core/evaluator.py`)
+Runs silently alongside the conversation and scores every explanation across five weighted metrics:
+
+| Metric | Weight |
+|---|---|
+| Factual Accuracy | 30% |
+| Conceptual Understanding | 25% |
+| Causal Reasoning | 20% |
+| Simplicity | 15% |
+| Jargon Independence | 10% |
+
+**Dynamic Hybrid Evaluation:**
+- **Online:** uses Gemini's structured JSON output for nuanced, context-aware scoring.
+- **Offline:** falls back to algorithmic heuristics (word complexity, causal-connective detection, term matching) — no hardcoded or static scores, even without an internet connection.
+
+---
+
+## 🖥️ Product Walkthrough
+
+Cognilac is organized into three workspaces:
+
+- **💬 Socratic Classroom Workspace** — the live chat where you teach Leo, with a mastery panel alongside it that fills in as you talk.
+- **📊 Mastery Engine Analytics** — a dashboard view of your scores across sessions and metrics.
+- **📄 Study Source Manager** — manage what Leo already "knows" so your explanations get evaluated against a real source.
+
+**Learning Source options let you choose how a topic is seeded:**
+- **Preset Topic** — pick from curated STEM topics (e.g., Cryptography) with built-in starter questions.
+- **Custom Topic** — type any topic you want to teach.
+- **Upload Study Material** — ground the session in your own notes or textbook content.
+
+**Demo Modes** (toggleable) showcase the platform's range for judges:
+- **Misconception Test Challenge** — Leo deliberately raises a common misconception to see if you catch and correct it.
+- **Google Search Grounding** — lets Leo's fact-checking pull from live web results.
+
+Other UI touches: a **Light & Clean / Dark Cyberpunk** theme toggle, a **speak-or-upload-audio** input option for verbal explanations, and a one-click **Restart Classroom Session**.
+
+---
+
+## 🔒 Security Features
+
+1. **Secret & Key Protection**
+   - Secrets loaded via `.env` with `python-dotenv`.
+   - `.env` and other sensitive files excluded from Git (`.gitignore`) and Docker images (`.dockerignore`).
+2. **Input Sanitization & Boundary Protection**
+   - User inputs and topic parameters are sanitized, stripping null bytes and non-printable control characters.
+   - Input length capped at 1,500 characters to guard against prompt injection and token exhaustion.
+3. **Session Rate Capping**
+   - Chat sessions capped at 30 turns to prevent bot loops and runaway API usage.
+4. **Production Server Hardening**
+   - Streamlit security options set in `.streamlit/config.toml`: `enableXsrfProtection = true`, `enableCORS = true`, minimal toolbar, disabled usage stats, hidden tracebacks.
+5. **XSS Protection**
+   - Any dynamic HTML rendered with `unsafe_allow_html=True` is escaped via `html.escape()`.
 
 ---
 
 ## 🧪 Running Automated Tests
 
-Run the full automated test suite (compatible with `unittest` and `pytest`):
-
 ```bash
 python -m unittest discover -s tests
 ```
 
-Tests cover:
-- Topic normalization & preset starter question lookups (`tests/test_config.py`)
-- Input sanitization & student agent behavior (`tests/test_agents.py`)
-- Deterministic mastery calculation & dynamic offline evaluator (`tests/test_evaluator.py`)
+Coverage includes:
+- Topic normalization & preset starter-question lookups — `tests/test_config.py`
+- Input sanitization & student agent behavior — `tests/test_agents.py`
+- Deterministic mastery calculation & dynamic offline evaluator — `tests/test_evaluator.py`
 
 ---
 
-## 🚀 How to Publish & Deploy
+## 🛠 Local Development Quickstart
 
-### Option 1: Streamlit Community Cloud (Recommended & Free)
-1. Push this repository to **GitHub**:
+1. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. Add your Gemini API key to a `.env` file:
+   ```env
+   GEMINI_API_KEY=your_gemini_api_key_here
+   ```
+3. Run the app:
+   ```bash
+   streamlit run app.py
+   ```
+
+---
+
+## 🚀 Deployment
+
+### Option 1 — Streamlit Community Cloud (recommended, free)
+1. Push the repo to GitHub:
    ```bash
    git init
    git add .
@@ -63,34 +131,30 @@ Tests cover:
    git remote add origin https://github.com/your-username/cognilac.git
    git push -u origin main
    ```
-2. Go to [share.streamlit.io](https://share.streamlit.io) and log in with GitHub.
-3. Click **New App**, select your repository, branch (`main`), and main file path (`app.py`).
-4. Click **Advanced settings...** and add your secret under **Secrets**:
+2. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
+3. Click **New App**, then select your repo, branch (`main`), and main file (`app.py`).
+4. Under **Advanced settings → Secrets**, add:
    ```toml
    GEMINI_API_KEY = "your_actual_gemini_api_key"
    ```
-5. Click **Deploy!** Your app will be live with an HTTPS URL.
+5. Click **Deploy!** — Cognilac will be live at an HTTPS URL.
 
----
+### Option 2 — Google Cloud Run
 
-### Option 2: Deploy to Google Cloud Run
+**Method A — Cloud Console (no CLI):**
+1. Push the project to GitHub (`.env` excluded via `.gitignore`).
+2. Open the [Cloud Run Console](https://console.cloud.google.com/run) and click **Create Service**.
+3. Choose **Continuously deploy from a repository** and connect your GitHub repo.
+4. Set Build Type to **Dockerfile**.
+5. Set **Container Port** to `8501`.
+6. Under **Environment Variables**, add `GEMINI_API_KEY`.
+7. Under **Authentication**, choose **Allow unauthenticated invocations** for a public URL.
+8. Click **Create** — GCP builds the container and returns your live URL.
 
-#### Method A: Via Google Cloud Console (No CLI needed)
-1. Push your project to GitHub (ensure `.env` is ignored by `.gitignore`).
-2. Go to the [Google Cloud Run Console](https://console.cloud.google.com/run).
-3. Click **Create Service**.
-4. Select **Continuously deploy from a repository** and connect your GitHub repository.
-5. Select **Dockerfile** as the Build Type.
-6. Under **Container Port**, enter `8501`.
-7. Under **Environment Variables**, add:
-   - `GEMINI_API_KEY` = `your_gemini_api_key_here`
-8. Under **Authentication**, select **Allow unauthenticated invocations** for a public URL.
-9. Click **Create**. GCP will build the Docker container and output your live HTTPS web URL!
-
-#### Method B: Via Google Cloud Shell (Cloud Console Terminal)
+**Method B — Cloud Shell:**
 1. Open [Google Cloud Shell](https://shell.cloud.google.com).
-2. Clone or upload your project code into Cloud Shell.
-3. Run the deployment command:
+2. Clone or upload the project.
+3. Deploy:
    ```bash
    gcloud run deploy cognilac \
      --source . \
@@ -102,18 +166,14 @@ Tests cover:
 
 ---
 
-## 🛠 Local Development Quickstart
+## 🗺 Roadmap Ideas
 
-1. Install requirements:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. Ensure your `.env` file contains your Gemini API key:
-   ```env
-   GEMINI_API_KEY=your_gemini_api_key_here
-   ```
+- Persistent mastery history across multiple topics and sessions.
+- Peer-teaching mode: two humans teach Leo the same topic and compare mastery scores.
+- Classroom/teacher dashboard for tracking multiple students' explanations over time.
 
-3. Run Streamlit app:
-   ```bash
-   streamlit run app.py
-   ```
+---
+
+##  Acknowledgements
+
+Built for **Hack2skill PromptWars x Diksuchi EdTech**, powered by **Google Gemini** and **Streamlit**.
