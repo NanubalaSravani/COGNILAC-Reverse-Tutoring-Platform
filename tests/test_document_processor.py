@@ -1,5 +1,5 @@
 import unittest
-from core.document_processor import extract_text_from_file, extract_concepts_and_topic, get_relevant_chunks
+from core.document_processor import extract_text_from_file, extract_concepts_and_topic, get_relevant_chunks, transcribe_audio_bytes
 
 class TestDocumentProcessor(unittest.TestCase):
     def test_txt_extraction(self):
@@ -27,6 +27,12 @@ Paragraph 2 about Drill-down which goes from monthly sales to daily transactions
 Paragraph 3 about Slice and Dice operations."""
         chunks = get_relevant_chunks(text, query="Drill-down transactions", max_chars=300)
         self.assertIn("Drill-down", chunks)
+
+    def test_audio_transcription_fallback(self):
+        dummy_audio = b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00" + b"\x00" * 200
+        transcription = transcribe_audio_bytes(dummy_audio, "test_voice.wav")
+        self.assertIsInstance(transcription, str)
+        self.assertGreater(len(transcription), 10)
 
 if __name__ == "__main__":
     unittest.main()

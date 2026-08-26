@@ -2,12 +2,18 @@ import streamlit as st
 import os
 import html
 import pandas as pd
+from typing import List, Optional, Tuple, Dict, Any
 from core.config import PRESET_TOPICS, get_api_key, CHALLENGE_VERTICAL
 from core.agents import LeoAgent
 from core.evaluator import EvaluatorAgent, EvaluationResult
-from core.document_processor import extract_text_from_file, extract_concepts_and_topic, get_relevant_chunks, transcribe_audio_bytes
+from core.document_processor import (
+    extract_text_from_file,
+    extract_concepts_and_topic,
+    get_relevant_chunks,
+    transcribe_audio_bytes,
+)
 
-# Page Setup
+# Page Setup & WAI-ARIA Metadata
 st.set_page_config(
     page_title="Cognilac - AI Reverse Tutoring Workspace",
     page_icon="🤖",
@@ -45,250 +51,239 @@ if "theme_mode" not in st.session_state:
 
 is_dark = (st.session_state.theme_mode == "🌙 Dark Cyberpunk")
 
-# Comprehensive Dynamic CSS Engine
-if is_dark:
-    st.markdown("""
-    <style>
-        /* DARK CYBERPUNK MODE */
-        .stApp {
-            background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 65%), #0B0F19 !important;
-            color: #F8FAFC !important;
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-        }
 
-        [data-testid="stSidebar"] {
-            background: rgba(15, 23, 42, 0.95) !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
-        }
+def inject_accessibility_and_theme_css(dark_mode: bool) -> None:
+    """Inject WAI-ARIA compliant CSS rules with WCAG 2.1 AAA high-contrast standards."""
+    if dark_mode:
+        css = """
+        <style>
+            /* DARK MODE (WCAG 2.1 AAA High Contrast) */
+            .stApp {
+                background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 65%), #0B0F19 !important;
+                color: #F8FAFC !important;
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            }
 
-        /* File Uploader Dark */
-        [data-testid="stFileUploader"], section[data-testid="stFileUploaderDropzone"] {
-            background-color: #1E293B !important;
-            border: 2px dashed #475569 !important;
-            border-radius: 12px !important;
-            color: #F8FAFC !important;
-        }
-        section[data-testid="stFileUploaderDropzone"] * {
-            color: #F8FAFC !important;
-        }
+            /* Keyboard Focus Outlines (Accessibility) */
+            *:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible {
+                outline: 3px solid #818CF8 !important;
+                outline-offset: 2px !important;
+            }
 
-        /* Chat Input Dark */
-        [data-testid="stChatInput"] {
-            background-color: #1E293B !important;
-            border: 1px solid #475569 !important;
-            border-radius: 12px !important;
-        }
-        [data-testid="stChatInput"] textarea {
-            color: #F8FAFC !important;
-            background-color: #1E293B !important;
-        }
-        [data-testid="stChatInput"] textarea::placeholder {
-            color: #94A3B8 !important;
-        }
+            [data-testid="stSidebar"] {
+                background: rgba(15, 23, 42, 0.95) !important;
+                border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+            }
 
-        .header-box {
-            background: rgba(19, 27, 46, 0.75);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(99, 102, 241, 0.25);
-            border-radius: 16px;
-            padding: 20px 24px;
-            margin-bottom: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-        }
-        .header-title {
-            font-size: 2.2rem;
-            font-weight: 900;
-            background: linear-gradient(90deg, #6366F1 0%, #06B6D4 50%, #A855F7 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 6px;
-            letter-spacing: 0.5px;
-        }
-        .role-pill {
-            background: rgba(99, 102, 241, 0.12) !important;
-            border: 1px solid rgba(99, 102, 241, 0.35) !important;
-            color: #818CF8 !important;
-            padding: 5px 14px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-        .quote-banner { color: #94A3B8 !important; font-style: italic; font-size: 0.92rem; margin-top: 8px; }
-        
-        .mastery-score-box {
-            text-align: center;
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
-            border: 1px solid rgba(99, 102, 241, 0.4);
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 0 25px rgba(99, 102, 241, 0.15);
-        }
-        .mastery-score-val {
-            font-size: 3.6rem;
-            font-weight: 900;
-            background: linear-gradient(90deg, #818CF8, #38BDF8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            line-height: 1;
-        }
-        .mastery-badge { display: inline-block; padding: 5px 14px; border-radius: 20px; font-weight: 700; font-size: 0.82rem; margin-top: 8px; }
-        .badge-master { background: linear-gradient(90deg, #059669, #10B981) !important; color: #ffffff !important; }
-        .badge-good { background: linear-gradient(90deg, #0891B2, #06B6D4) !important; color: #ffffff !important; }
-        .badge-needs-simplicity { background: linear-gradient(90deg, #D97706, #F59E0B) !important; color: #ffffff !important; }
-        .badge-gaps { background: linear-gradient(90deg, #DC2626, #EF4444) !important; color: #ffffff !important; }
+            [data-testid="stFileUploader"], section[data-testid="stFileUploaderDropzone"] {
+                background-color: #1E293B !important;
+                border: 2px dashed #475569 !important;
+                border-radius: 12px !important;
+                color: #F8FAFC !important;
+            }
+            section[data-testid="stFileUploaderDropzone"] * { color: #F8FAFC !important; }
 
-        .tag-mastered { background-color: rgba(16, 185, 129, 0.12) !important; color: #34D399 !important; border: 1px solid rgba(16, 185, 129, 0.3) !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
-        .tag-gap { background-color: rgba(245, 158, 11, 0.12) !important; color: #FBBF24 !important; border: 1px solid rgba(245, 158, 11, 0.3) !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
-        .tag-jargon { background-color: rgba(239, 68, 68, 0.12) !important; color: #F87171 !important; border: 1px solid rgba(239, 68, 68, 0.3) !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
+            [data-testid="stChatInput"] {
+                background-color: #1E293B !important;
+                border: 1px solid #475569 !important;
+                border-radius: 12px !important;
+            }
+            [data-testid="stChatInput"] textarea { color: #F8FAFC !important; background-color: #1E293B !important; }
 
-        .highlight-box { background: rgba(19, 27, 46, 0.8) !important; border-left: 4px solid #6366F1 !important; padding: 14px; border-radius: 8px; margin-top: 10px; margin-bottom: 10px; color: #E2E8F0 !important; }
-        .highlight-box * { color: #E2E8F0 !important; }
-        .misconception-card { background: rgba(168, 85, 247, 0.12) !important; border: 1px solid rgba(168, 85, 247, 0.3) !important; border-radius: 12px; padding: 14px; margin-top: 10px; color: #E9D5FF !important; }
-        .misconception-card * { color: #E9D5FF !important; }
-    </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-    <style>
-        /* LIGHT & CLEAN MODE */
-        .stApp {
-            background-color: #F8FAFC !important;
-            color: #0F172A !important;
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-        }
+            .header-box {
+                background: rgba(19, 27, 46, 0.85);
+                backdrop-filter: blur(16px);
+                border: 1px solid rgba(99, 102, 241, 0.3);
+                border-radius: 16px;
+                padding: 20px 24px;
+                margin-bottom: 15px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            }
+            .header-title {
+                font-size: 2.2rem;
+                font-weight: 900;
+                background: linear-gradient(90deg, #818CF8 0%, #38BDF8 50%, #C084FC 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin-bottom: 6px;
+            }
+            .role-pill {
+                background: rgba(99, 102, 241, 0.15) !important;
+                border: 1px solid rgba(99, 102, 241, 0.4) !important;
+                color: #A5B4FC !important;
+                padding: 5px 14px;
+                border-radius: 20px;
+                font-size: 0.85rem;
+                font-weight: 600;
+            }
+            .quote-banner { color: #CBD5E1 !important; font-style: italic; font-size: 0.92rem; margin-top: 8px; }
 
-        /* Dark Text Override */
-        .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
-        [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span,
-        [data-testid="stCaptionContainer"], [data-testid="stChatMessage"] p {
-            color: #0F172A !important;
-            background: transparent !important;
-        }
+            .mastery-score-box {
+                text-align: center;
+                background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+                border: 1px solid rgba(99, 102, 241, 0.4);
+                border-radius: 16px;
+                padding: 20px;
+                margin-bottom: 16px;
+            }
+            .mastery-score-val {
+                font-size: 3.6rem;
+                font-weight: 900;
+                color: #818CF8 !important;
+                line-height: 1;
+            }
+            .mastery-badge { display: inline-block; padding: 5px 14px; border-radius: 20px; font-weight: 700; font-size: 0.82rem; margin-top: 8px; }
+            .badge-master { background: #059669 !important; color: #ffffff !important; }
+            .badge-good { background: #0891B2 !important; color: #ffffff !important; }
+            .badge-needs-simplicity { background: #D97706 !important; color: #ffffff !important; }
+            .badge-gaps { background: #DC2626 !important; color: #ffffff !important; }
 
-        /* Radio Buttons & Checkboxes Fix */
-        div[role="radiogroup"] label, div[role="radiogroup"] span, div[role="radiogroup"] p {
-            color: #0F172A !important;
-            background: transparent !important;
-            background-color: transparent !important;
-        }
+            .tag-mastered { background-color: rgba(16, 185, 129, 0.15) !important; color: #34D399 !important; border: 1px solid rgba(16, 185, 129, 0.3) !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
+            .tag-gap { background-color: rgba(245, 158, 11, 0.15) !important; color: #FBBF24 !important; border: 1px solid rgba(245, 158, 11, 0.3) !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
+            .tag-jargon { background-color: rgba(239, 68, 68, 0.15) !important; color: #F87171 !important; border: 1px solid rgba(239, 68, 68, 0.3) !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
 
-        /* Sidebar Light */
-        [data-testid="stSidebar"] {
-            background-color: #FFFFFF !important;
-            border-right: 1px solid #E2E8F0 !important;
-        }
-        [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span, [data-testid="stSidebar"] div, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
-            color: #0F172A !important;
-        }
+            .highlight-box { background: rgba(19, 27, 46, 0.85) !important; border-left: 4px solid #6366F1 !important; padding: 14px; border-radius: 8px; margin-top: 10px; margin-bottom: 10px; color: #F8FAFC !important; }
+            .highlight-box * { color: #F8FAFC !important; }
+            .misconception-card { background: rgba(168, 85, 247, 0.15) !important; border: 1px solid rgba(168, 85, 247, 0.4) !important; border-radius: 12px; padding: 14px; margin-top: 10px; color: #F3E8FF !important; }
+            .misconception-card * { color: #F3E8FF !important; }
+        </style>
+        """
+    else:
+        css = """
+        <style>
+            /* LIGHT & CLEAN MODE (WCAG 2.1 AAA High Contrast) */
+            .stApp {
+                background-color: #F8FAFC !important;
+                color: #0F172A !important;
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            }
 
-        /* File Uploader Light Box Fix */
-        [data-testid="stFileUploader"], section[data-testid="stFileUploaderDropzone"] {
-            background-color: #F1F5F9 !important;
-            border: 2px dashed #CBD5E1 !important;
-            border-radius: 12px !important;
-            color: #0F172A !important;
-        }
-        section[data-testid="stFileUploaderDropzone"] * {
-            color: #0F172A !important;
-        }
+            /* Keyboard Focus Outlines (Accessibility) */
+            *:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible {
+                outline: 3px solid #4F46E5 !important;
+                outline-offset: 2px !important;
+            }
 
-        /* Chat Input Light Bar Fix */
-        [data-testid="stChatInput"] {
-            background-color: #FFFFFF !important;
-            border: 1px solid #CBD5E1 !important;
-            border-radius: 12px !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
-        }
-        [data-testid="stChatInput"] textarea {
-            color: #0F172A !important;
-            background-color: #FFFFFF !important;
-        }
-        [data-testid="stChatInput"] textarea::placeholder {
-            color: #64748B !important;
-        }
+            .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6,
+            [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] span,
+            [data-testid="stCaptionContainer"], [data-testid="stChatMessage"] p {
+                color: #0F172A !important;
+                background: transparent !important;
+            }
 
-        /* Chat Messages Light */
-        [data-testid="stChatMessage"] {
-            background-color: #FFFFFF !important;
-            border: 1px solid #E2E8F0 !important;
-            border-radius: 12px !important;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
-            color: #0F172A !important;
-        }
+            div[role="radiogroup"] label, div[role="radiogroup"] span, div[role="radiogroup"] p {
+                color: #0F172A !important;
+                background: transparent !important;
+            }
 
-        /* Inputs, Selectboxes, Dropdowns */
-        input, textarea, select, div[data-baseweb="select"] *, div[data-baseweb="popover"] * {
-            color: #0F172A !important;
-            background-color: #FFFFFF !important;
-        }
+            [data-testid="stSidebar"] {
+                background-color: #FFFFFF !important;
+                border-right: 1px solid #E2E8F0 !important;
+            }
+            [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span, [data-testid="stSidebar"] div {
+                color: #0F172A !important;
+            }
 
-        /* Tabs */
-        button[data-baseweb="tab"] p, button[data-baseweb="tab"] div, button[data-baseweb="tab"] span {
-            color: #0F172A !important;
-            font-weight: 600 !important;
-        }
+            [data-testid="stFileUploader"], section[data-testid="stFileUploaderDropzone"] {
+                background-color: #F1F5F9 !important;
+                border: 2px dashed #CBD5E1 !important;
+                border-radius: 12px !important;
+                color: #0F172A !important;
+            }
+            section[data-testid="stFileUploaderDropzone"] * { color: #0F172A !important; }
 
-        .header-box {
-            background: linear-gradient(135deg, #FFFFFF 0%, #EEF2FF 100%);
-            border: 1px solid #C7D2FE;
-            border-radius: 16px;
-            padding: 20px 24px;
-            margin-bottom: 15px;
-            box-shadow: 0 4px 14px rgba(79, 70, 229, 0.08);
-        }
-        .header-title {
-            font-size: 2.2rem;
-            font-weight: 900;
-            background: linear-gradient(90deg, #4F46E5 0%, #06B6D4 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 6px;
-            letter-spacing: 0.5px;
-        }
-        .role-pill {
-            background: #EEF2FF !important;
-            border: 1px solid #C7D2FE !important;
-            color: #4F46E5 !important;
-            padding: 5px 14px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-        .quote-banner { color: #475569 !important; font-style: italic; font-size: 0.92rem; margin-top: 8px; }
-        .mastery-score-box {
-            text-align: center;
-            background: linear-gradient(135deg, #EEF2FF 0%, #E0F2FE 100%);
-            border: 2px solid #4F46E5;
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.06);
-        }
-        .mastery-score-val { font-size: 3.6rem; font-weight: 900; color: #4F46E5 !important; line-height: 1; }
-        .mastery-badge { display: inline-block; padding: 5px 14px; border-radius: 20px; font-weight: 700; font-size: 0.82rem; margin-top: 8px; }
-        .badge-master { background: #059669 !important; color: #ffffff !important; }
-        .badge-good { background: #0891B2 !important; color: #ffffff !important; }
-        .badge-needs-simplicity { background: #D97706 !important; color: #ffffff !important; }
-        .badge-gaps { background: #DC2626 !important; color: #ffffff !important; }
+            [data-testid="stChatInput"] {
+                background-color: #FFFFFF !important;
+                border: 1px solid #CBD5E1 !important;
+                border-radius: 12px !important;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+            }
+            [data-testid="stChatInput"] textarea { color: #0F172A !important; background-color: #FFFFFF !important; }
+            [data-testid="stChatInput"] textarea::placeholder { color: #475569 !important; }
 
-        .tag-mastered { background-color: #ECFDF5 !important; color: #047857 !important; border: 1px solid #A7F3D0 !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
-        .tag-gap { background-color: #FFFBEB !important; color: #B45309 !important; border: 1px solid #FDE68A !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
-        .tag-jargon { background-color: #FEF2F2 !important; color: #B91C1C !important; border: 1px solid #FCA5A5 !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
+            [data-testid="stChatMessage"] {
+                background-color: #FFFFFF !important;
+                border: 1px solid #E2E8F0 !important;
+                border-radius: 12px !important;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+                color: #0F172A !important;
+            }
 
-        .highlight-box { background-color: #FFFFFF !important; border-left: 4px solid #4F46E5 !important; border-top: 1px solid #E2E8F0 !important; border-right: 1px solid #E2E8F0 !important; border-bottom: 1px solid #E2E8F0 !important; padding: 14px; border-radius: 8px; margin-top: 10px; margin-bottom: 10px; color: #1E293B !important; }
-        .highlight-box * { color: #1E293B !important; }
+            input, textarea, select, div[data-baseweb="select"] *, div[data-baseweb="popover"] * {
+                color: #0F172A !important;
+                background-color: #FFFFFF !important;
+            }
 
-        .misconception-card { background: #F5F3FF !important; border: 1px solid #DDD6FE !important; border-radius: 12px; padding: 14px; margin-top: 10px; color: #4C1D95 !important; }
-        .misconception-card * { color: #4C1D95 !important; }
-    </style>
-    """, unsafe_allow_html=True)
+            button[data-baseweb="tab"] p, button[data-baseweb="tab"] div, button[data-baseweb="tab"] span {
+                color: #0F172A !important;
+                font-weight: 600 !important;
+            }
+
+            .header-box {
+                background: linear-gradient(135deg, #FFFFFF 0%, #EEF2FF 100%);
+                border: 1px solid #C7D2FE;
+                border-radius: 16px;
+                padding: 20px 24px;
+                margin-bottom: 15px;
+                box-shadow: 0 4px 14px rgba(79, 70, 229, 0.08);
+            }
+            .header-title {
+                font-size: 2.2rem;
+                font-weight: 900;
+                background: linear-gradient(90deg, #4F46E5 0%, #06B6D4 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin-bottom: 6px;
+            }
+            .role-pill {
+                background: #EEF2FF !important;
+                border: 1px solid #C7D2FE !important;
+                color: #4F46E5 !important;
+                padding: 5px 14px;
+                border-radius: 20px;
+                font-size: 0.85rem;
+                font-weight: 600;
+            }
+            .quote-banner { color: #334155 !important; font-style: italic; font-size: 0.92rem; margin-top: 8px; }
+
+            .mastery-score-box {
+                text-align: center;
+                background: linear-gradient(135deg, #EEF2FF 0%, #E0F2FE 100%);
+                border: 2px solid #4F46E5;
+                border-radius: 16px;
+                padding: 20px;
+                margin-bottom: 16px;
+            }
+            .mastery-score-val { font-size: 3.6rem; font-weight: 900; color: #4F46E5 !important; line-height: 1; }
+            .mastery-badge { display: inline-block; padding: 5px 14px; border-radius: 20px; font-weight: 700; font-size: 0.82rem; margin-top: 8px; }
+            .badge-master { background: #059669 !important; color: #ffffff !important; }
+            .badge-good { background: #0891B2 !important; color: #ffffff !important; }
+            .badge-needs-simplicity { background: #D97706 !important; color: #ffffff !important; }
+            .badge-gaps { background: #DC2626 !important; color: #ffffff !important; }
+
+            .tag-mastered { background-color: #ECFDF5 !important; color: #047857 !important; border: 1px solid #A7F3D0 !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
+            .tag-gap { background-color: #FFFBEB !important; color: #B45309 !important; border: 1px solid #FDE68A !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
+            .tag-jargon { background-color: #FEF2F2 !important; color: #B91C1C !important; border: 1px solid #FCA5A5 !important; padding: 4px 12px; border-radius: 8px; font-size: 0.8rem; display: inline-block; margin: 3px; font-weight: 600; }
+
+            .highlight-box { background-color: #FFFFFF !important; border-left: 4px solid #4F46E5 !important; border-top: 1px solid #E2E8F0 !important; border-right: 1px solid #E2E8F0 !important; border-bottom: 1px solid #E2E8F0 !important; padding: 14px; border-radius: 8px; margin-top: 10px; margin-bottom: 10px; color: #0F172A !important; }
+            .highlight-box * { color: #0F172A !important; }
+
+            .misconception-card { background: #F5F3FF !important; border: 1px solid #DDD6FE !important; border-radius: 12px; padding: 14px; margin-top: 10px; color: #4C1D95 !important; }
+            .misconception-card * { color: #4C1D95 !important; }
+        </style>
+        """
+    st.markdown(css, unsafe_allow_html=True)
 
 
-# Sidebar Configuration (Control Drawer)
+inject_accessibility_and_theme_css(is_dark)
+
+# =========================================================
+# SIDEBAR NAVIGATION & CONTROL PANEL
+# =========================================================
 with st.sidebar:
+    st.markdown('<nav aria-label="Control Panel">', unsafe_allow_html=True)
     if os.path.exists("assets/cognilac_logo.png"):
-        st.image("assets/cognilac_logo.png", use_container_width=True)
+        st.image("assets/cognilac_logo.png", use_container_width=True, caption="Cognilac AI Platform")
     else:
         st.markdown("## 🤖 **COGNILAC**")
     
@@ -302,6 +297,7 @@ with st.sidebar:
         "Mode:",
         ["☀️ Light & Clean", "🌙 Dark Cyberpunk"],
         index=0 if not is_dark else 1,
+        help="Select WAI-ARIA compliant light or dark visual theme."
     )
     if selected_theme != st.session_state.theme_mode:
         st.session_state.theme_mode = selected_theme
@@ -311,7 +307,6 @@ with st.sidebar:
     api_key = get_api_key()
 
     st.markdown("### 📚 Learning Source")
-    
     learning_source = st.radio(
         "Source Mode:",
         ["Preset Topic", "Custom Topic", "📄 Upload Study Material"],
@@ -361,7 +356,6 @@ with st.sidebar:
         if st.session_state.doc_filename:
             st.success(f"📄 **{st.session_state.doc_filename}**")
             st.caption(f"✓ {len(st.session_state.doc_concepts)} concepts detected")
-            st.caption("✓ Learning context ready")
             
             if st.session_state.doc_concepts:
                 st.markdown("**Detected Key Concepts:**")
@@ -403,7 +397,7 @@ with st.sidebar:
     st.markdown(f"**Adaptive Difficulty:** `Level {st.session_state.level} / 5`")
     st.progress(st.session_state.level / 5.0)
 
-    if st.button("🔄 Restart Classroom Session", use_container_width=True):
+    if st.button("🔄 Restart Classroom Session", use_container_width=True, help="Reset teaching history"):
         st.session_state.messages = []
         st.session_state.level = 1
         st.session_state.evaluation = None
@@ -411,6 +405,7 @@ with st.sidebar:
         st.session_state.mastered_set = set()
         st.session_state.gaps_set = set()
         st.rerun()
+    st.markdown('</nav>', unsafe_allow_html=True)
 
 # Determine turn grounding snippet if document uploaded
 if learning_source == "📄 Upload Study Material" and st.session_state.doc_text:
@@ -441,6 +436,7 @@ if not st.session_state.messages:
 
 
 # Hero Header Banner
+st.markdown('<header role="banner">', unsafe_allow_html=True)
 col_logo, col_banner_text = st.columns([1, 4])
 with col_logo:
     if os.path.exists("assets/cognilac_logo.png"):
@@ -448,8 +444,8 @@ with col_logo:
 with col_banner_text:
     st.markdown(f"""
     <div class="header-box" style="margin-bottom: 0px;">
-        <div class="header-title">COGNILAC — Reverse Tutoring Platform</div>
-        <div class="role-badge-container">
+        <h1 class="header-title" style="margin:0; font-size:2.2rem;">COGNILAC — Reverse Tutoring Platform</h1>
+        <div class="role-badge-container" style="margin-top:8px;">
             <span class="role-pill">🧑‍🏫 YOU = TEACHER</span>
             <span class="role-pill">👦 LEO = 10-YR-OLD STUDENT</span>
             <span class="role-pill">⚙️ SOCRATIC EVALUATOR ENGINE</span>
@@ -459,10 +455,11 @@ with col_banner_text:
         </div>
     </div>
     """, unsafe_allow_html=True)
+st.markdown('</header>', unsafe_allow_html=True)
 
 if learning_source == "📄 Upload Study Material" and st.session_state.doc_filename:
     concepts_badge_html = "".join([f'<span class="tag-mastered" style="font-size:0.75rem;">✓ {html.escape(c)}</span>' for c in st.session_state.doc_concepts[:6]])
-    source_card_bg = "rgba(6, 182, 212, 0.1)" if is_dark else "#ECFEFF"
+    source_card_bg = "rgba(6, 182, 212, 0.15)" if is_dark else "#ECFEFF"
     source_card_txt = "#38BDF8" if is_dark else "#0891B2"
     st.markdown(f"""
     <div class="highlight-box" style="border-left-color: #06B6D4; background: {source_card_bg}; margin-bottom: 15px;">
@@ -488,7 +485,7 @@ tab_classroom, tab_analytics, tab_source = st.tabs([
     "📄 Study Source Manager",
 ])
 
-eval_data: EvaluationResult = st.session_state.evaluation
+eval_data: Optional[EvaluationResult] = st.session_state.evaluation
 
 # =========================================================
 # TAB 1: Socratic Classroom Workspace
@@ -496,11 +493,10 @@ eval_data: EvaluationResult = st.session_state.evaluation
 with tab_classroom:
     col_chat, col_dash = st.columns([60, 40], gap="large")
 
-    # LEFT COLUMN: Socratic Classroom Chat
     with col_chat:
         st.markdown(f"### 👦 Teaching **{st.session_state.current_topic}** to Leo")
 
-        # Render Chat History
+        # Chat History Container
         chat_container = st.container(height=420)
         with chat_container:
             for msg in st.session_state.messages:
@@ -514,7 +510,7 @@ with tab_classroom:
         if turn_count >= MAX_SESSION_TURNS:
             st.warning("⚠️ Session turn limit reached (30 turns). Click 'Restart Classroom Session' in the sidebar to begin a fresh teaching session!")
         else:
-            # Voice Explanation Expander Box
+            # Voice Explanation Input Box
             with st.expander("🎙️ Speak or Upload Audio Explanation", expanded=False):
                 col_v1, col_v2 = st.columns([60, 40])
                 voice_audio = None
@@ -587,14 +583,12 @@ with tab_classroom:
                 if len(clean_input) < 3:
                     st.toast("⚠️ Please enter a complete explanation (at least 3 characters).", icon="ℹ️")
                 else:
-                    # Record Teacher Message
                     st.session_state.messages.append({"role": "user", "content": clean_input})
                     
                     with chat_container:
                         with st.chat_message("user", avatar="🧑‍🏫"):
                             st.markdown(clean_input)
 
-                    # Generate Leo Response
                     with chat_container:
                         with st.chat_message("assistant", avatar="👦"):
                             with st.spinner("Leo is thinking..."):
@@ -602,7 +596,6 @@ with tab_classroom:
                                 st.markdown(leo_reply)
                                 st.session_state.messages.append({"role": "assistant", "content": leo_reply})
 
-                    # Run Parallel Independent Evaluator
                     with st.spinner("Analyzing pedagogical quality & knowledge gaps..."):
                         eval_result = evaluator_agent.evaluate_turn(
                             topic=st.session_state.current_topic,
@@ -617,7 +610,6 @@ with tab_classroom:
                         st.session_state.evaluation = eval_result
                         st.session_state.history_scores.append(eval_result.overall_mastery)
 
-                        # Update accumulated mastered concepts and knowledge gaps sets
                         for item in eval_result.mastered_concepts:
                             st.session_state.mastered_set.add(item)
                             if item in st.session_state.gaps_set:
@@ -627,21 +619,19 @@ with tab_classroom:
                             if item not in st.session_state.mastered_set:
                                 st.session_state.gaps_set.add(item)
 
-                        # Adaptive Level Update
                         if eval_result.level_change != 0:
                             new_lvl = max(1, min(5, st.session_state.level + eval_result.level_change))
                             st.session_state.level = new_lvl
 
                     st.rerun()
 
-    # RIGHT COLUMN: Real-Time Cognilac Mastery Engine
+    # RIGHT COLUMN: Real-Time Mastery Engine
     with col_dash:
         st.markdown("### 📊 Live Mastery Engine")
 
         if eval_data is None:
             st.info("💡 **Ready for your first explanation!** Type or speak your response to Leo on the left. The Cognilac Evaluator will score your simplicity, detect jargon, and map your knowledge gaps in real-time.")
         else:
-            # 1. Overall Mastery Score Badge
             mastery = eval_data.overall_mastery
             if mastery >= 88:
                 badge_class = "badge-master"
@@ -658,42 +648,41 @@ with tab_classroom:
 
             sub_score_col = "#94A3B8" if is_dark else "#475569"
             st.markdown(f"""
-            <div class="mastery-score-box">
+            <div class="mastery-score-box" role="region" aria-label="Mastery Score Panel">
                 <div style="font-size: 0.8rem; color: {sub_score_col}; text-transform: uppercase; letter-spacing: 1px;">Cognilac Mastery Score</div>
-                <div class="mastery-score-val">{mastery} <span style="font-size: 1.4rem; color: #64748B;">/ 100</span></div>
+                <div class="mastery-score-val" aria-live="polite">{mastery} <span style="font-size: 1.4rem; color: #64748B;">/ 100</span></div>
                 <div class="mastery-badge {badge_class}">{standing}</div>
             </div>
             """, unsafe_allow_html=True)
 
-            # 2. 5 Weighted Metrics
+            # 5 Weighted Metrics
             st.markdown("#### 📈 Metric Breakdown")
             col_m1, col_m2 = st.columns(2)
             with col_m1:
-                st.markdown(f"**Factual Accuracy (30%)**")
+                st.markdown("**Factual Accuracy (30%)**")
                 st.progress(eval_data.factual_accuracy / 100.0)
                 st.caption(f"{eval_data.factual_accuracy}%")
 
-                st.markdown(f"**Conceptual Understanding (25%)**")
+                st.markdown("**Conceptual Understanding (25%)**")
                 st.progress(eval_data.conceptual_understanding / 100.0)
                 st.caption(f"{eval_data.conceptual_understanding}%")
 
-                st.markdown(f"**Causal Reasoning (20%)**")
+                st.markdown("**Causal Reasoning (20%)**")
                 st.progress(eval_data.causal_reasoning / 100.0)
                 st.caption(f"{eval_data.causal_reasoning}%")
 
             with col_m2:
-                st.markdown(f"**Simplicity (15%)**")
+                st.markdown("**Simplicity (15%)**")
                 st.progress(eval_data.simplicity / 100.0)
                 st.caption(f"{eval_data.simplicity}%")
 
-                st.markdown(f"**Jargon Independence (10%)**")
+                st.markdown("**Jargon Independence (10%)**")
                 st.progress(eval_data.jargon_independence / 100.0)
                 st.caption(f"{eval_data.jargon_independence}%")
 
-            # 3. Primary Knowledge Gap
             if eval_data.primary_knowledge_gap:
                 clean_pkg = html.escape(str(eval_data.primary_knowledge_gap))
-                pkg_bg = "rgba(245, 158, 11, 0.1)" if is_dark else "#FFFBEB"
+                pkg_bg = "rgba(245, 158, 11, 0.15)" if is_dark else "#FFFBEB"
                 pkg_txt = "#FBBF24" if is_dark else "#B45309"
                 st.markdown(f"""
                 <div class="highlight-box" style="border-left-color: #F59E0B; background: {pkg_bg};">
@@ -702,10 +691,9 @@ with tab_classroom:
                 </div>
                 """, unsafe_allow_html=True)
 
-            # 4. Recommended Next Challenge
             if eval_data.next_challenge:
                 clean_nc = html.escape(str(eval_data.next_challenge))
-                nc_bg = "rgba(99, 102, 241, 0.1)" if is_dark else "#EEF2FF"
+                nc_bg = "rgba(99, 102, 241, 0.15)" if is_dark else "#EEF2FF"
                 nc_txt = "#818CF8" if is_dark else "#4338CA"
                 st.markdown(f"""
                 <div class="highlight-box" style="border-left-color: #6366F1; background: {nc_bg};">
@@ -734,7 +722,6 @@ with tab_analytics:
         else:
             st.info("No teaching turns recorded yet. Explain a concept in the Workspace tab to start tracking progress!")
 
-        # Jargon Warnings
         if eval_data and eval_data.jargon_detected:
             st.markdown("#### 🚨 Technical Jargon Detected")
             jargon_html = "".join([f'<span class="tag-jargon">❌ {html.escape(str(j))}</span>' for j in eval_data.jargon_detected])
@@ -742,14 +729,11 @@ with tab_analytics:
 
     with col_a2:
         st.markdown("#### 🗺️ Knowledge Competency Breakdown")
-        
-        # Mastered concepts
         if st.session_state.mastered_set:
             st.markdown("**✓ Mastered Concepts:**")
             tags_html = "".join([f'<span class="tag-mastered">✓ {html.escape(str(c))}</span>' for c in st.session_state.mastered_set])
             st.markdown(tags_html, unsafe_allow_html=True)
 
-        # Active Gaps
         if st.session_state.gaps_set:
             st.markdown("**⚠️ Active Knowledge Gaps:**")
             gaps_html = "".join([f'<span class="tag-gap">⚠ {html.escape(str(g))}</span>' for g in st.session_state.gaps_set])
@@ -759,24 +743,21 @@ with tab_analytics:
             st.markdown("#### 💡 Pedagogical Feedback")
             st.info(eval_data.actionable_feedback)
 
-    # Misconception Challenge Log
-    if eval_data and (eval_data.misconception_detected or misconception_mode):
-        st.divider()
-        corrected_status = "YES ✓" if eval_data.teacher_corrected_misconception else "NO ❌"
-        status_color = "#34D399" if eval_data.teacher_corrected_misconception else "#F87171"
-        clean_mf = html.escape(str(eval_data.misconception_feedback))
-        misc_bg = "rgba(168, 85, 247, 0.12)" if is_dark else "#F5F3FF"
-        st.markdown(f"""
-        <div class="misconception-card" style="background: {misc_bg};">
-            <div style="font-weight: 700;">🧠 Misconception Test Challenge Log</div>
-            <div style="margin-top: 4px; font-size: 0.9rem;">
-                Teacher Identified & Corrected: <strong style="color: {status_color};">{corrected_status}</strong>
-            </div>
-            <div style="font-size: 0.85rem; margin-top: 4px;">
-                {clean_mf}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Session Report Export Option
+    st.divider()
+    if st.session_state.history_scores:
+        report_md = f"# Cognilac Socratic Session Report - {st.session_state.current_topic}\n\n"
+        report_md += f"- **Topic:** {st.session_state.current_topic}\n"
+        report_md += f"- **Latest Mastery Score:** {st.session_state.history_scores[-1]}/100\n"
+        report_md += f"- **Mastered Concepts:** {', '.join(st.session_state.mastered_set) or 'None yet'}\n"
+        report_md += f"- **Active Gaps:** {', '.join(st.session_state.gaps_set) or 'None'}\n"
+        st.download_button(
+            "📥 Download Session Mastery Report (Markdown)",
+            data=report_md,
+            file_name=f"Cognilac_Report_{st.session_state.current_topic}.md",
+            mime="text/markdown",
+            use_container_width=True,
+        )
 
 
 # =========================================================
